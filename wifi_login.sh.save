@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# ==============================================================================
+# WiFi Auto-Login Script for https://10.100.1.1:8090/httpclient.html
+# ==============================================================================
+
+# URL of the captive portal
+URL="https://10.100.1.1:8090/httpclient.html"
+
+# CREDENTIALS LIST
+# Format: "username:password"
+# PLEASE UPDATE THIS ARRAY WITH YOUR ACTUAL CREDENTIALS
+CREDENTIALS=(
+    "guestlocus1:123"
+    "your_username_2:your_password_2")
+
+# Function to check for active internet connection
+check_internet() {
+    # Ping Google DNS (8.8.8.8) to verify connectivity
+    if ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
+        return 0 # Connected
+    else
+        return 1 # Not connected
+    fi
+}
+
+echo "Starting WiFi Auto-Login Service..."
+
+# Main execution loop
+while true; do
+    # 1. Check if we already have internet access
+    if check_internet; then
+        echo "Internet connection active. Script finished."
+        exit 0
+    fi
+
+    # 2. Check if we can reach the portal (are we on the right WiFi?)
+    # Using curl -k to ignore SSL errors (common with IP-based portals)
+    # Using --head to just check connectivity quickly
+    if ! curl -k --head --connect-timeout 3 "$URL" >/dev/null 2>&1; then
+        echo "Portal ($URL) unreachable. Waiting for connection to specific network..."
+        sleep 10
+        continue
+    fi
+
+    echo "Portal reachable. Attempting login..."
+
+    # 3. Iterate through credentials
+    LOGIN_SUCCESS=false
+    
+    for cred in "${CREDENTIALS[@]}"; do
+        # Split "user:pass" string
+        IFS=":" read -r username password <<< "$cred"
+        
+        echo "Attempting login with user: $username"
+        
+        # Send Login Request
+        # Common Cyberoam/Sophos fields: mode=191 (login), username, password
+        # We capture the output to check for error messages
+        response=$(curl -k -s -d "mode=191&username=$(echo "$username" | jq -sRr @uri)&password=$(echo "$password" | jq -sRr @uri)" "$URL")
+        
+        # 4. Analyze Response
+        # Check for specific "Limit Exceeded" messages
+        if echo "$response" | grep -iqE "limit exceeded|maximum login|already signed in"; then
+            echo " -> Login limit exceeded or user busy for $username. Trying next..."
+            continue
+        fi
+
+        # Verify if it worked by checking internet again immediately
+        sleep 2
+        if check_internet; then
+            echo " -> Login Successful!"
+            LOGIN_SUCCESS=true
+            break
+        else
+            echo " -> Login failed or did not result in internet access."
+        fi
+    done
+
+    # 5. Exit if successful, or wait loop if failed
+    if [ "$LOGIN_SUCCESS" = true ]; then
+        exit 0
+    else
+        echo "All credentials tried. Retrying in 10 seconds..."
+        sleep 10
+    fi
+done
