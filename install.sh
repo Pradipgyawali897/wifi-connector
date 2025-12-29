@@ -32,16 +32,53 @@ for cmd in "${deps[@]}"; do
 done
 echo "All dependencies found."
 
-# 3. Create Desktop Entry for Autostart
-AUTOSTART_DIR="$HOME/.config/autostart"
-DESKTOP_FILE="wifi-auto-login.desktop"
-TARGET_DESKTOP_PATH="$AUTOSTART_DIR/$DESKTOP_FILE"
+# 3. Setup Autostart
+# We prefer Systemd User Service if available, as it provides better process management (restarts on failure).
+# Fallback to XDG Autostart (.desktop) for other systems.
 
-mkdir -p "$AUTOSTART_DIR"
+setup_systemd() {
+    echo "Systemd detected. Installing as a user service..."
+    SERVICE_DIR="$HOME/.config/systemd/user"
+    mkdir -p "$SERVICE_DIR"
+    
+    SERVICE_FILE="$SERVICE_DIR/wifi-connector.service"
+    
+    cat > "$SERVICE_FILE" <<EOL
+[Unit]
+Description=WiFi Auto-Login Service
+After=network.target network-online.target
+Wants=network-online.target
 
-echo "Creating autostart entry at $TARGET_DESKTOP_PATH..."
+[Service]
+ExecStart=/bin/bash "$SCRIPT_PATH"
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+WorkingDirectory=$INSTALL_DIR
 
-cat > "$TARGET_DESKTOP_PATH" <<EOL
+[Install]
+WantedBy=default.target
+EOL
+
+    # Reload systemd and enable service
+    systemctl --user daemon-reload
+    systemctl --user enable wifi-connector.service
+    systemctl --user start wifi-connector.service
+    
+    echo -e "${GREEN}Systemd User Service installed and started!${NC}"
+    echo "Check status with: systemctl --user status wifi-connector.service"
+}
+
+setup_xdg() {
+    echo "Installing as XDG Autostart (Desktop Entry)..."
+    AUTOSTART_DIR="$HOME/.config/autostart"
+    DESKTOP_FILE="wifi-auto-login.desktop"
+    TARGET_DESKTOP_PATH="$AUTOSTART_DIR/$DESKTOP_FILE"
+
+    mkdir -p "$AUTOSTART_DIR"
+
+    cat > "$TARGET_DESKTOP_PATH" <<EOL
 [Desktop Entry]
 Type=Application
 Exec=bash "$SCRIPT_PATH"
@@ -52,8 +89,18 @@ Name=Campus WiFi Auto-Login
 Comment=Automatically logins to Campus WiFi or exits if on Home WiFi
 EOL
 
-chmod +x "$TARGET_DESKTOP_PATH"
+    chmod +x "$TARGET_DESKTOP_PATH"
+    echo -e "${GREEN}XDG Autostart entry created!${NC}"
+}
 
-echo -e "${GREEN}Installation Complete!${NC}"
-echo "The script will now run automatically on login."
-echo "To test it now, you can run: $SCRIPT_PATH"
+if command -v systemctl &> /dev/null; then
+    # Check if we can talk to the user bus
+    if systemctl --user list-units &> /dev/null; then
+        setup_systemd
+    else
+        echo "Systemd found but user bus not accessible. Falling back to XDG Autostart."
+        setup_xdg
+    fi
+else
+    setup_xdg
+fi

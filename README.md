@@ -20,38 +20,42 @@ The script requires standard Linux utilities:
 
 ## Installation
 
-1.  **Clone or Download** this repository.
+1.  **Clone the repository**.
     ```bash
-    git clone <repo_url>
-    cd wifiConnector
+    git clone https://github.com/Pradipgyawali897/wifi-connector.git
+    cd wifi-connector
     ```
 
 2.  **Configure** your settings.
-    Edit `config.env` to add your credentials and update the Gateway URL if necessary.
+    Copy the example config and edit it with your credentials:
     ```bash
+    cp config.env.example config.env
     nano config.env
     ```
 
 3.  **Run the Installer**.
-    This will set up permissions and add the script to your system's startup apps.
+    This script automatically detects your system type (Systemd vs Standard XDG) and installs the service accordingly for maximum compatibility.
     ```bash
     bash install.sh
     ```
+    *   **Systemd Systems** (Ubuntu, Mint, Arch, Fedora, etc.): Installs a user-level background service (`wifi-connector.service`).
+    *   **Others**: Adds a startup entry to your Desktop Environment.
+
+## Configuration
+
+The `config.env` file holds your secrets.
+*   **GATEWAY_IP**: The IP used to detect the captive portal network.
+*   **BASE_URL**: The login endpoint.
+*   **CREDENTIALS**: Array of `username:password` strings.
 
 ## Usage
 
-Once installed, the script runs automatically when you log in.
-
-To run it manually for testing:
-```bash
-./wifi_login.sh
-```
-
-## Structure
-
-*   `wifi_login.sh`: The main logic script.
-*   `config.env`: User configuration (ignored by git, template provided).
-*   `install.sh`: Setup script for the local machine.
+*   **Automatic**: The script runs in the background on login/boot.
+*   **Manual**: Run `./wifi_login.sh` in a terminal.
+*   **Logs (Systemd)**: If installed via systemd, view logs with:
+    ```bash
+    journalctl --user -u wifi-connector -f
+    ```
 
 ## Customization
 
