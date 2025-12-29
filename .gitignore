@@ -1,0 +1,6 @@
+# User configuration (contains secrets)
+config.env
+# Generated autostart files (if any in root)
+*.desktop
+# Logs
+*.log
