@@ -51,6 +51,7 @@ Wants=network-online.target
 
 [Service]
 ExecStart=/bin/bash "$SCRIPT_PATH"
+Environment="PATH=$PATH"
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -81,7 +82,7 @@ setup_xdg() {
     cat > "$TARGET_DESKTOP_PATH" <<EOL
 [Desktop Entry]
 Type=Application
-Exec=bash "$SCRIPT_PATH"
+Exec=/bin/bash -l -c "\"$SCRIPT_PATH\" >> \"$HOME/wifi-login.log\" 2>&1"
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
